@@ -1,41 +1,38 @@
 from django.db import models
-
-
-class User(models.Model):
-    class Meta:
-        abstract = True
-
-    loginNSTU = models.CharField('Логин', max_length=200, unique=True, null=True)
+from django.contrib.auth.models import User as DUser
 
 
 class Graph(models.Model):
-    User = models.ForeignKey(User, on_delete=models.CASCADE)
+    Title = models.CharField('Title', max_length=150)
+    User = models.ForeignKey(DUser, on_delete=models.CASCADE)
+    ReadableUser = models.ManyToManyField(DUser, related_name='ReadableUser')
 
     def __str__(self):
-        return self.User
+        return f'{self.User.username}: {self.Title}'
+
+
+class Content(models.Model):
+    Title = models.CharField('Title', max_length=150)
+    Text = models.TextField('Text')
+    Data = models.FileField('Data', blank=True, null=True)
+    Ord = models.IntegerField('Ord', blank=True, null=True, default=None)
+
+    def __str__(self):
+        return self.Title
 
 
 class Node(models.Model):
     Graph = models.ForeignKey(Graph, on_delete=models.CASCADE)
-    Content = models.ForeignKey(Content, on_delete=models.CASCADE)
+    Content = models.ForeignKey(Content, on_delete=models.CASCADE, null=True)
 
     def __str__(self):
-        return self.Content
-
-
-class Content(User):
-    Text = models.TextField('Text')
-    Data = models.FileField('Data')
-    Ord = models.IntegerField('Ord')
-
-    def __str__(self):
-        return self.Text
+        return self.Content.Title
 
 
 class Link(models.Model):
-    StartNode = models.ForeignKey(Node, on_delete=models.CASCADE)
-    EndNode = models.ForeignKey(Node, on_delete=models.CASCADE)
-    Weight = models.IntegerField('Вес')
+    StartNode = models.ForeignKey(Node, on_delete=models.CASCADE, related_name='StartNode')
+    EndNode = models.ForeignKey(Node, on_delete=models.CASCADE, related_name='EndNode')
+    Weight = models.IntegerField('Вес', default=0)
 
     def __str__(self):
         return self.Weight
