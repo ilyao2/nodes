@@ -15,6 +15,12 @@ def my_graphs(request):
     """
 
 
+def base_node(request, graph_id):
+    """
+    Получить базовый узел заданного графа
+    """
+
+
 def graph_nodes(request, graph_id):
     """
     Получить все узлы принадлежащие графу

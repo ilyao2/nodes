@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User as DUser
 
+# TODO: Придумать, как обозначить базовый узел
+
 
 class Graph(models.Model):
     Title = models.CharField('Title', max_length=150)
