@@ -1,7 +1,10 @@
 from django.db import models
 from django.contrib.auth.models import User as DUser
 
-# TODO: Придумать, как обозначить базовый узел
+
+class Token(models.Model):
+    User = models.OneToOneField(DUser, on_delete=models.CASCADE)
+    UUID = models.UUIDField('Token')
 
 
 class Graph(models.Model):
@@ -13,22 +16,23 @@ class Graph(models.Model):
         return f'{self.User.username}: {self.Title}'
 
 
-class Content(models.Model):
+class Node(models.Model):
     Title = models.CharField('Title', max_length=150)
-    Text = models.TextField('Text')
-    Data = models.FileField('Data', blank=True, null=True)
-    Ord = models.IntegerField('Ord', blank=True, null=True, default=None)
+    Graph = models.ForeignKey(Graph, on_delete=models.CASCADE)
+    IsBase = models.BooleanField('IsBase', default=False)
 
     def __str__(self):
         return self.Title
 
 
-class Node(models.Model):
-    Graph = models.ForeignKey(Graph, on_delete=models.CASCADE)
-    Content = models.ForeignKey(Content, on_delete=models.CASCADE, null=True)
+class Content(models.Model):
+    Node = models.ForeignKey(Node, on_delete=models.CASCADE, blank=True, null=True)
+    Text = models.TextField('Text', blank=True, null=True)
+    Data = models.FileField('Data', blank=True, null=True)
+    Ord = models.IntegerField('Ord', blank=True, default=0)
 
     def __str__(self):
-        return self.Content.Title
+        return self.Text or 'Empty name'
 
 
 class Link(models.Model):
@@ -37,5 +41,5 @@ class Link(models.Model):
     Weight = models.IntegerField('Вес', default=0)
 
     def __str__(self):
-        return self.Weight
+        return f'{self.StartNode} -> {self.EndNode}: {str(self.Weight)}'
 
