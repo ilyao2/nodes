@@ -174,6 +174,8 @@ def links_to(request, user=None):
 def node_content(request, user=None):
     """
     Получить контент заданного узла
+    token: Уникальный токен пользователя
+    node_id: Идентификатор графа
     """
     node_id = request.GET.get('node_id')
     if not node_id:
@@ -191,22 +193,57 @@ def node_content(request, user=None):
     return response
 
 
-def append_node(request, graph_id, content=None):
+@check_token
+def append_node(request, user=None):
     """
     Добавить узел в граф
-    Исходя из контента делает обход по графу и создаёт веса и связи
+    Исходя из контента делает обход по графу, создаёт связи и распределяет веса
     Если не найдено с чем связать, связывает с базовым узлом
+    token: Уникальный токен пользователя
+    graph_id: Идентификатор графа
+    title: Заголовок узла
+
+    content:
+        text:
+        data:
+        content-type?
+        ord?:
     """
+    # TODO: Проверить что нет такого же заголовка
+    # TODO: Найти все линки, (повторяющиеся линки - ?), (как правильно рассчитывать веса)
+    # TODO: Создать новые линки, пересчитать веса
     # TODO: Самый важный метод
+    # TODO: Как прокидывать большие текстовые данные, как прокидывать файлы
+    graph_id = request.GET.get('graph_id')
+    if not graph_id:
+        response = JsonResponse({'Error': 'Input graph_id'})
+    else:
+        if Graph.objects.filter(ReadableUser=user, id=graph_id).exists():
+            graph = Graph.objects.get(id=graph_id)
+            node = Node(Title='Title', Graph=graph, IsBase=False)
+            node.save()
+            input_ord = 0
+            calc_ord = 0
+            input_text = ''
+            input_data = None
+            content = Content(Text=input_text, Data=input_data, Node=node, Ord=input_ord or calc_ord)
+            content.save()
+            # Пересчитать линки и создать линки
+        else:
+            response = JsonResponse({'Error': "You don't have access to this graph or bad graph id"})
+    return response
 
 
 def ordered_nodes(request, graph_id):
     """
     Получить все узлы графа в топографически отсортированном виде относительно базового узла
     """
+    # TODO: топографическая сортировка
+    # TODO: сортировка по рейтингу
 
 
 def create_graph(request):
     """
     Создать граф и базовый узел в нём. Не должно существовать графов без узла
     """
+    # TODO: Не забыть дополнить ReadableUsers
