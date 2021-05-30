@@ -7,6 +7,26 @@ from uuid import uuid4
 # TODO: распределить функции по модулям
 
 
+def check_token(func):
+    """
+    Декоратор проверяющий наличие токена и его правльность.
+    """
+    def inner(*args, **kwargs):
+        request = args[0]
+        token = request.GET.get('token')
+        if not token:
+            response = JsonResponse({'Error': 'Input token'})
+        else:
+            try:
+                user = Token.objects.get(UUID=token).User
+                return func(*args, user=user, **kwargs)
+            except (ObjectDoesNotExist, MultipleObjectsReturned):
+                response = JsonResponse({'Error': 'Bad token'})
+        return response
+
+    return inner
+
+
 def auth(request):
     """
     Авторизовать по логину и паролю и вернуть токен
@@ -51,147 +71,123 @@ def index(request):
     return JsonResponse({'Graphs': data})
 
 
-def my_graphs(request):
+@check_token
+def my_graphs(request, user=None):
     """
     Получить все графы текущего пользователя
     token: Уникальный токен пользователя
     """
-    token = request.GET.get('token')
-    try:
-        user = Token.objects.get(UUID=token).User
-        data = list(Graph.objects.filter(User=user).values())
-        response = JsonResponse({'Graphs': data})
-    except (ObjectDoesNotExist, MultipleObjectsReturned):
-        response = JsonResponse({'Error': 'Bad token'})
+    data = list(Graph.objects.filter(User=user).values())
+    response = JsonResponse({'Graphs': data})
     return response
 
 
-def base_node(request):
+@check_token
+def base_node(request, user=None):
     """
     Получить базовый узел заданного графа
     token: Уникальный токен пользователя
     graph_id: Идентификатор графа
     """
-    token = request.GET.get('token')
     graph_id = request.GET.get('graph_id')
-    if not(token and graph_id):
-        response = JsonResponse({'Error': 'Input token and graph_id'})
+    if not graph_id:
+        response = JsonResponse({'Error': 'Input graph_id'})
     else:
-        try:
-            user = Token.objects.get(UUID=token).User
-            if Graph.objects.filter(ReadableUser=user, id=graph_id).exists():
-                graph = Graph.objects.get(id=graph_id)
-                data = list(Node.objects.filter(Graph=graph, IsBase=True)[0:1].values())
-                response = JsonResponse({'Nodes': data})
-            else:
-                response = JsonResponse({'Error': "You don't have access to this graph or bad graph id"})
-        except (ObjectDoesNotExist, MultipleObjectsReturned):
-            response = JsonResponse({'Error': 'Bad token'})
+        if Graph.objects.filter(ReadableUser=user, id=graph_id).exists():
+            graph = Graph.objects.get(id=graph_id)
+            data = list(Node.objects.filter(Graph=graph, IsBase=True)[0:1].values())
+            response = JsonResponse({'Nodes': data})
+        else:
+            response = JsonResponse({'Error': "You don't have access to this graph or bad graph id"})
     return response
 
 
-def graph_nodes(request):
+@check_token
+def graph_nodes(request, user=None):
     """
     Получить все узлы принадлежащие графу
     token: Уникальный токен пользователя
     graph_id: Идентификатор графа
     """
-    token = request.GET.get('token')
     graph_id = request.GET.get('graph_id')
-    if not(token and graph_id):
-        response = JsonResponse({'Error': 'Input token and graph_id'})
+    if not graph_id:
+        response = JsonResponse({'Error': 'Input graph_id'})
     else:
-        try:
-            user = Token.objects.get(UUID=token).User
-            if Graph.objects.filter(ReadableUser=user, id=graph_id).exists():
-                graph = Graph.objects.get(id=graph_id)
-                data = list(Node.objects.filter(Graph=graph).values())
-                response = JsonResponse({'Nodes': data})
-            else:
-                response = JsonResponse({'Error': "You don't have access to this graph or bad graph id"})
-        except (ObjectDoesNotExist, MultipleObjectsReturned):
-            response = JsonResponse({'Error': 'Bad token'})
+        if Graph.objects.filter(ReadableUser=user, id=graph_id).exists():
+            graph = Graph.objects.get(id=graph_id)
+            data = list(Node.objects.filter(Graph=graph).values())
+            response = JsonResponse({'Nodes': data})
+        else:
+            response = JsonResponse({'Error': "You don't have access to this graph or bad graph id"})
     return response
 
 
-def links_from(request):
+@check_token
+def links_from(request, user=None):
     """
     Получить все узлы, в которые можно попасть из этого узла
     token: Уникальный токен пользователя
     node_id: Идентификатор графа
     """
-    token = request.GET.get('token')
     node_id = request.GET.get('node_id')
-    if not(token and node_id):
-        response = JsonResponse({'Error': 'Input token and node_id'})
+    if not node_id:
+        response = JsonResponse({'Error': 'Input node_id'})
     else:
         try:
-            user = Token.objects.get(UUID=token).User
-            try:
-                node = Node.objects.get(id=node_id)
-                if Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
-                    links = Link.objects.filter(StartNode=node).values('EndNode')
-                    data = list(Node.objects.filter(id__in=links).values())
-                    response = JsonResponse({'Nodes': data})
-                else:
-                    response = JsonResponse({'Error': "You don't have access to this node"})
-            except (ObjectDoesNotExist, MultipleObjectsReturned):
-                response = JsonResponse({'Error': 'Bad node id'})
+            node = Node.objects.get(id=node_id)
+            if Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
+                links = Link.objects.filter(StartNode=node).values('EndNode')
+                data = list(Node.objects.filter(id__in=links).values())
+                response = JsonResponse({'Nodes': data})
+            else:
+                response = JsonResponse({'Error': "You don't have access to this node"})
         except (ObjectDoesNotExist, MultipleObjectsReturned):
-            response = JsonResponse({'Error': 'Bad token'})
+            response = JsonResponse({'Error': 'Bad node id'})
     return response
 
 
-def links_to(request):
+@check_token
+def links_to(request, user=None):
     """
     Получить все узлы, из которых можно попасть в этот узел
     token: Уникальный токен пользователя
     node_id: Идентификатор графа
     """
-    token = request.GET.get('token')
     node_id = request.GET.get('node_id')
-    if not(token and node_id):
-        response = JsonResponse({'Error': 'Input token and node_id'})
+    if not node_id:
+        response = JsonResponse({'Error': 'Input node_id'})
     else:
         try:
-            user = Token.objects.get(UUID=token).User
-            try:
-                node = Node.objects.get(id=node_id)
-                if Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
-                    links = Link.objects.filter(EndNode=node).values('StartNode')
-                    data = list(Node.objects.filter(id__in=links).values())
-                    response = JsonResponse({'Nodes': data})
-                else:
-                    response = JsonResponse({'Error': "You don't have access to this node"})
-            except (ObjectDoesNotExist, MultipleObjectsReturned):
-                response = JsonResponse({'Error': 'Bad node id'})
+            node = Node.objects.get(id=node_id)
+            if Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
+                links = Link.objects.filter(EndNode=node).values('StartNode')
+                data = list(Node.objects.filter(id__in=links).values())
+                response = JsonResponse({'Nodes': data})
+            else:
+                response = JsonResponse({'Error': "You don't have access to this node"})
         except (ObjectDoesNotExist, MultipleObjectsReturned):
-            response = JsonResponse({'Error': 'Bad token'})
+            response = JsonResponse({'Error': 'Bad node id'})
     return response
 
 
-def node_content(request):
+@check_token
+def node_content(request, user=None):
     """
     Получить контент заданного узла
     """
-    token = request.GET.get('token')
     node_id = request.GET.get('node_id')
-    if not(token and node_id):
-        response = JsonResponse({'Error': 'Input token and node_id'})
+    if not node_id:
+        response = JsonResponse({'Error': 'Input node_id'})
     else:
         try:
-            user = Token.objects.get(UUID=token).User
-            try:
-                node = Node.objects.get(id=node_id)
-                if Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
-                    data = list(Content.objects.filter(Node=node).values())
-                    response = JsonResponse({'Contents': data})
-                else:
-                    response = JsonResponse({'Error': "You don't have access to this node"})
-            except (ObjectDoesNotExist, MultipleObjectsReturned):
-                response = JsonResponse({'Error': 'Bad node id'})
+            node = Node.objects.get(id=node_id)
+            if Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
+                data = list(Content.objects.filter(Node=node).values())
+                response = JsonResponse({'Contents': data})
+            else:
+                response = JsonResponse({'Error': "You don't have access to this node"})
         except (ObjectDoesNotExist, MultipleObjectsReturned):
-            response = JsonResponse({'Error': 'Bad token'})
+            response = JsonResponse({'Error': 'Bad node id'})
     return response
 
 
