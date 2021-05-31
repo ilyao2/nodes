@@ -1,4 +1,4 @@
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.contrib.auth import authenticate
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from .models import *
@@ -13,17 +13,35 @@ def check_token(func):
     """
     def inner(*args, **kwargs):
         request = args[0]
-        token = request.GET.get('token')
+        token = request.GET.get('token') or request.POST.get('token')
         if not token:
             response = JsonResponse({'Error': 'Input token'})
         else:
             try:
                 user = Token.objects.get(UUID=token).User
-                return func(*args, user=user, **kwargs)
+                response = func(*args, user=user, **kwargs)
             except (ObjectDoesNotExist, MultipleObjectsReturned):
                 response = JsonResponse({'Error': 'Bad token'})
         return response
+    return inner
 
+
+def check_graph(func, user_param=None):
+    """
+    Декоратор проверяющий наличие и доступ к переданному графу
+    """
+    def inner(*args, user=user_param, **kwargs):
+        request = args[0]
+        graph_id = request.GET.get('graph_id') or request.POST.get('graph_id')
+        if not graph_id:
+            response = JsonResponse({'Error': 'Input graph_id'})
+        else:
+            try:
+                graph = Graph.objects.get(ReadableUser=user, id=graph_id)
+                response = func(*args, user=user, graph=graph)
+            except (ObjectDoesNotExist, MultipleObjectsReturned):
+                response = JsonResponse({'Error': "You don't have access to this graph or bad graph id"})
+        return response
     return inner
 
 
@@ -72,7 +90,7 @@ def index(request):
 
 
 @check_token
-def my_graphs(request, user=None):
+def get_my_graphs(request, user=None):
     """
     Получить все графы текущего пользователя
     token: Уникальный токен пользователя
@@ -83,47 +101,33 @@ def my_graphs(request, user=None):
 
 
 @check_token
-def base_node(request, user=None):
+@check_graph
+def get_base_node(request, user=None, graph=None):
     """
     Получить базовый узел заданного графа
     token: Уникальный токен пользователя
     graph_id: Идентификатор графа
     """
-    graph_id = request.GET.get('graph_id')
-    if not graph_id:
-        response = JsonResponse({'Error': 'Input graph_id'})
-    else:
-        if Graph.objects.filter(ReadableUser=user, id=graph_id).exists():
-            graph = Graph.objects.get(id=graph_id)
-            data = list(Node.objects.filter(Graph=graph, IsBase=True)[0:1].values())
-            response = JsonResponse({'Nodes': data})
-        else:
-            response = JsonResponse({'Error': "You don't have access to this graph or bad graph id"})
+    data = list(Node.objects.filter(Graph=graph, IsBase=True)[0:1].values())
+    response = JsonResponse({'Nodes': data})
     return response
 
 
 @check_token
-def graph_nodes(request, user=None):
+@check_graph
+def get_graph_nodes(request, user=None, graph=None):
     """
     Получить все узлы принадлежащие графу
     token: Уникальный токен пользователя
     graph_id: Идентификатор графа
     """
-    graph_id = request.GET.get('graph_id')
-    if not graph_id:
-        response = JsonResponse({'Error': 'Input graph_id'})
-    else:
-        if Graph.objects.filter(ReadableUser=user, id=graph_id).exists():
-            graph = Graph.objects.get(id=graph_id)
-            data = list(Node.objects.filter(Graph=graph).values())
-            response = JsonResponse({'Nodes': data})
-        else:
-            response = JsonResponse({'Error': "You don't have access to this graph or bad graph id"})
+    data = list(Node.objects.filter(Graph=graph).values())
+    response = JsonResponse({'Nodes': data})
     return response
 
 
 @check_token
-def links_from(request, user=None):
+def get_links_from(request, user=None):
     """
     Получить все узлы, в которые можно попасть из этого узла
     token: Уникальный токен пользователя
@@ -147,7 +151,7 @@ def links_from(request, user=None):
 
 
 @check_token
-def links_to(request, user=None):
+def get_links_to(request, user=None):
     """
     Получить все узлы, из которых можно попасть в этот узел
     token: Уникальный токен пользователя
@@ -171,7 +175,7 @@ def links_to(request, user=None):
 
 
 @check_token
-def node_content(request, user=None):
+def get_node_content(request, user=None):
     """
     Получить контент заданного узла
     token: Уникальный токен пользователя
@@ -194,11 +198,11 @@ def node_content(request, user=None):
 
 
 @check_token
-def append_node(request, user=None):
+@check_graph
+def append_node(request, user=None, graph=None):
     """
     Добавить узел в граф
     Исходя из контента делает обход по графу, создаёт связи и распределяет веса
-    Если не найдено с чем связать, связывает с базовым узлом
     token: Уникальный токен пользователя
     graph_id: Идентификатор графа
     title: Заголовок узла
@@ -206,35 +210,60 @@ def append_node(request, user=None):
     content:
         text:
         data:
-        content-type?
-        ord?:
     """
-    # TODO: Проверить что нет такого же заголовка
-    # TODO: Найти все линки, (повторяющиеся линки - ?), (как правильно рассчитывать веса)
-    # TODO: Создать новые линки, пересчитать веса
-    # TODO: Самый важный метод
-    # TODO: Как прокидывать большие текстовые данные, как прокидывать файлы
-    graph_id = request.GET.get('graph_id')
-    if not graph_id:
-        response = JsonResponse({'Error': 'Input graph_id'})
-    else:
-        if Graph.objects.filter(ReadableUser=user, id=graph_id).exists():
-            graph = Graph.objects.get(id=graph_id)
-            node = Node(Title='Title', Graph=graph, IsBase=False)
-            node.save()
-            input_ord = 0
-            calc_ord = 0
-            input_text = ''
-            input_data = None
-            content = Content(Text=input_text, Data=input_data, Node=node, Ord=input_ord or calc_ord)
+    if request.POST:
+        title = request.POST.get('title')
+        text = request.POST.get('text')
+        data = request.POST.get('data')
+        if Node.objects.filter(Graph=graph, Title__iexact=title).exists():
+            return HttpResponse(status=201)
+        node = Node(Title=title, Graph=graph, IsBase=False)
+        node.save()
+        content = None
+        if text or data:
+            content = Content(Text=text, Data=data, Node=node, Ord=0)
             content.save()
-            # Пересчитать линки и создать линки
-        else:
-            response = JsonResponse({'Error': "You don't have access to this graph or bad graph id"})
-    return response
+        create_links(node)
+        return HttpResponse(status=200)
+    return HttpResponse(status=201)
 
 
-def ordered_nodes(request, graph_id):
+def create_links(node):
+    """
+    Метод создаёт связи и распределяет веса между узлом и другими узлами
+    Если не найдено с чем связать, связывает с базовым узлом
+    """
+    other_nodes = Node.objects.filter(Graph=node.Graph).exclude(id=node.id)
+    other_contents = Content.objects.filter(Node__in=other_nodes)
+    node_contents = Content.objects.filter(Node=node)
+    links_dict = {}
+    for other_content in other_contents:
+        text = other_content.Text
+        weight = text.count(node.Title) if text else 0
+        if weight > 0:
+            other_node = other_content.Node
+            if (other_node, node) in links_dict:
+                links_dict[(other_node, node)] += weight
+            else:
+                links_dict[(other_node, node)] = weight
+    if not links_dict:
+        base_node = Node.objects.get(Graph=node.Graph, IsBase=True)
+        links_dict[(base_node, node)] = 1
+    for other_node in other_nodes:
+        for content in node_contents:
+            text = content.Text
+            weight = text.count(other_node.Title) if text else 0
+            if weight > 0:
+                if (node, other_node) in links_dict:
+                    links_dict[(node, other_node)] += weight
+                else:
+                    links_dict[(node, other_node)] = weight
+
+    links = [Link(StartNode=link[0], EndNode=link[1], Weight=links_dict[link]) for link in links_dict]
+    Link.objects.bulk_create(links)
+
+
+def get_ordered_nodes(request, graph_id):
     """
     Получить все узлы графа в топографически отсортированном виде относительно базового узла
     """

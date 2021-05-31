@@ -38,7 +38,7 @@ class Content(models.Model):
 class Link(models.Model):
     StartNode = models.ForeignKey(Node, on_delete=models.CASCADE, related_name='StartNode')
     EndNode = models.ForeignKey(Node, on_delete=models.CASCADE, related_name='EndNode')
-    Weight = models.IntegerField('Вес', default=0)
+    Weight = models.IntegerField('Weight', default=0)
 
     def __str__(self):
         return f'{self.StartNode} -> {self.EndNode}: {str(self.Weight)}'
