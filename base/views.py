@@ -219,7 +219,6 @@ def append_node(request, user=None, graph=None):
             return HttpResponse(status=201)
         node = Node(Title=title, Graph=graph, IsBase=False)
         node.save()
-        content = None
         if text or data:
             content = Content(Text=text, Data=data, Node=node, Ord=0)
             content.save()
@@ -233,7 +232,7 @@ def create_links(node):
     Метод создаёт связи и распределяет веса между узлом и другими узлами
     Если не найдено с чем связать, связывает с базовым узлом
     """
-    other_nodes = Node.objects.filter(Graph=node.Graph).exclude(id=node.id)
+    other_nodes = Node.objects.filter(Graph=node.Graph, IsBase=False).exclude(id=node.id)
     other_contents = Content.objects.filter(Node__in=other_nodes)
     node_contents = Content.objects.filter(Node=node)
     links_dict = {}
