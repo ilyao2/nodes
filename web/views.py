@@ -1,5 +1,5 @@
-from django.shortcuts import render
-from django.http import HttpResponse
+from django.shortcuts import render, redirect
+from django.http import HttpResponse, HttpResponseBadRequest
 from base import views as api
 import json
 
@@ -9,23 +9,25 @@ def index(request):
 
 
 def login_view(request):
-    return render(request, 'login/index.html')
-
-
-def auth(request):
-    """Вызывает api-method для получения токена и сохраняет токен в сессию"""
-    byte_data = api.auth(request).getvalue()
-    dict_data = json.loads(byte_data.decode())
-    token = dict_data.get('Token')
-    if token:
-        response = HttpResponse('redirect good')
+    if request.POST:
+        byte_data = api.auth(request).getvalue()
+        dict_data = json.loads(byte_data.decode())
+        token = dict_data.get('Token')
+        if token:
+            request.session['NodesToken'] = token
+            response = redirect('/graphs/')
+        else:
+            response = redirect('/login/')
+        return response
     else:
-        response = HttpResponse('redirect bad')
-    return response
+        return render(request, 'login/index.html')
 
 
 def graphs_view(request):
-    return HttpResponse('Показывает все графы текущего пользователя. Пользователь по токену из сессии')
+    if request.session.get('NodesToken'):
+        return HttpResponse('Показывает все графы текущего пользователя. Пользователь по токену из сессии')
+    else:
+        return redirect('/login/', request)
 
 
 def graph_view(request):
