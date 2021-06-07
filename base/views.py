@@ -1,6 +1,7 @@
 from django.http import JsonResponse, HttpResponse
 from django.contrib.auth import authenticate
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
+from django.db.models import Max
 from .models import *
 from uuid import uuid4
 
@@ -38,9 +39,54 @@ def check_graph(func, user_param=None):
         else:
             try:
                 graph = Graph.objects.get(ReadableUser=user, id=graph_id)
-                response = func(*args, user=user, graph=graph)
+                response = func(*args, user=user, graph=graph, **kwargs)
             except (ObjectDoesNotExist, MultipleObjectsReturned):
                 response = JsonResponse({'Error': "You don't have access to this graph or bad graph id"})
+        return response
+    return inner
+
+
+def check_node(func, user_param=None):
+    """
+    Декоратор проверяющий наличие и доступ к переданному узлу
+    """
+    def inner(*args, user=user_param, **kwargs):
+        request = args[0]
+        node_id = request.GET.get('node_id') or request.POST.get('node_id')
+        if not node_id:
+            response = JsonResponse({'Error': 'Input node_id'})
+        else:
+            try:
+                node = Node.objects.get(id=node_id)
+                if Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
+                    response = func(*args, user=user, node=node, **kwargs)
+                else:
+                    response = JsonResponse({'Error': "You don't have access to this node"})
+            except (ObjectDoesNotExist, MultipleObjectsReturned):
+                response = JsonResponse({'Error': 'Bad node id'})
+        return response
+    return inner
+
+
+def check_content(func, user_param=None):
+    """
+    Декоратор проверяющий наличие и доступ к переданному узлу
+    """
+    def inner(*args, user=user_param, **kwargs):
+        request = args[0]
+        content_id = request.GET.get('content_id') or request.POST.get('content_id')
+        if not content_id:
+            response = JsonResponse({'Error': 'Input content_id'})
+        else:
+            try:
+                content = Content.objects.get(id=content_id)
+                node = Node.objects.get(id=content.Node)
+                if Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
+                    response = func(*args, user=user, content=content, node=node, **kwargs)
+                else:
+                    response = JsonResponse({'Error': "You don't have access to this content"})
+            except (ObjectDoesNotExist, MultipleObjectsReturned):
+                response = JsonResponse({'Error': 'Bad content id'})
         return response
     return inner
 
@@ -51,8 +97,8 @@ def auth(request):
     login: Логин пользователя
     password: Пароль пользователя
     """
-    login = request.GET.get('login')
-    password = request.GET.get('password')
+    login = request.POST.get('login')
+    password = request.POST.get('password')
     user = authenticate(username=login, password=password)
     data = Token.objects.get(User=user).UUID if user else ''
     return JsonResponse({'Token': data})
@@ -65,9 +111,9 @@ def reg(request):
     password: Пароль пользователя
     email: Электронная почта нового пользователя
     """
-    login = request.GET.get('login')
-    password = request.GET.get('password')
-    email = request.GET.get('email')
+    login = request.POST.get('login')
+    password = request.POST.get('password')
+    email = request.POST.get('email')
     if not(login and password):
         response = JsonResponse({'Error': 'Input login and password'})
     elif DUser.objects.filter(username__exact=login).exists():
@@ -82,11 +128,6 @@ def reg(request):
         token.save()
         response = JsonResponse({'Token': uuid})
     return response
-
-
-def index(request):
-    data = list(Content.objects.all()[0:1].values())
-    return JsonResponse({'Graphs': data})
 
 
 @check_token
@@ -127,73 +168,43 @@ def get_graph_nodes(request, user=None, graph=None):
 
 
 @check_token
-def get_links_from(request, user=None):
+@check_node
+def get_links_from(request, user=None, node=None):
     """
     Получить все узлы, в которые можно попасть из этого узла
     token: Уникальный токен пользователя
     node_id: Идентификатор графа
     """
-    node_id = request.GET.get('node_id')
-    if not node_id:
-        response = JsonResponse({'Error': 'Input node_id'})
-    else:
-        try:
-            node = Node.objects.get(id=node_id)
-            if Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
-                links = Link.objects.filter(StartNode=node).values('EndNode')
-                data = list(Node.objects.filter(id__in=links).values())
-                response = JsonResponse({'Nodes': data})
-            else:
-                response = JsonResponse({'Error': "You don't have access to this node"})
-        except (ObjectDoesNotExist, MultipleObjectsReturned):
-            response = JsonResponse({'Error': 'Bad node id'})
+    links = Link.objects.filter(StartNode=node).values('EndNode')
+    data = list(Node.objects.filter(id__in=links).values())
+    response = JsonResponse({'Nodes': data})
     return response
 
 
 @check_token
-def get_links_to(request, user=None):
+@check_node
+def get_links_to(request, user=None, node=None):
     """
     Получить все узлы, из которых можно попасть в этот узел
     token: Уникальный токен пользователя
     node_id: Идентификатор графа
     """
-    node_id = request.GET.get('node_id')
-    if not node_id:
-        response = JsonResponse({'Error': 'Input node_id'})
-    else:
-        try:
-            node = Node.objects.get(id=node_id)
-            if Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
-                links = Link.objects.filter(EndNode=node).values('StartNode')
-                data = list(Node.objects.filter(id__in=links).values())
-                response = JsonResponse({'Nodes': data})
-            else:
-                response = JsonResponse({'Error': "You don't have access to this node"})
-        except (ObjectDoesNotExist, MultipleObjectsReturned):
-            response = JsonResponse({'Error': 'Bad node id'})
+    links = Link.objects.filter(EndNode=node).values('StartNode')
+    data = list(Node.objects.filter(id__in=links).values())
+    response = JsonResponse({'Nodes': data})
     return response
 
 
 @check_token
-def get_node_content(request, user=None):
+@check_node
+def get_node_content(request, user=None, node=None):
     """
-    Получить контент заданного узла
+    Получить контенты заданного узла отсортированные по указанному порядку
     token: Уникальный токен пользователя
     node_id: Идентификатор графа
     """
-    node_id = request.GET.get('node_id')
-    if not node_id:
-        response = JsonResponse({'Error': 'Input node_id'})
-    else:
-        try:
-            node = Node.objects.get(id=node_id)
-            if Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
-                data = list(Content.objects.filter(Node=node).values())
-                response = JsonResponse({'Contents': data})
-            else:
-                response = JsonResponse({'Error': "You don't have access to this node"})
-        except (ObjectDoesNotExist, MultipleObjectsReturned):
-            response = JsonResponse({'Error': 'Bad node id'})
+    data = list(Content.objects.filter(Node=node).order_by('Ord').values())
+    response = JsonResponse({'Contents': data})
     return response
 
 
@@ -220,7 +231,7 @@ def append_node(request, user=None, graph=None):
         node = Node(Title=title, Graph=graph, IsBase=False)
         node.save()
         if text or data:
-            content = Content(Text=text, Data=data, Node=node, Ord=0)
+            content = Content(Text=text, Data=data, Node=node, Ord=1)
             content.save()
         create_links(node)
         return HttpResponse(status=200)
@@ -270,8 +281,81 @@ def get_ordered_nodes(request, graph_id):
     # TODO: сортировка по рейтингу
 
 
-def create_graph(request):
+@check_token
+def create_graph(request, user=None):
     """
     Создать граф и базовый узел в нём. Не должно существовать графов без узла
+    token: Уникальный токен пользователя
+    graph_id: Идентификатор графа
+    title: название графа
     """
-    # TODO: Не забыть дополнить ReadableUsers
+    if request.POST:
+        title = request.POST.get('title')
+        graph = Graph(Title=title, User=user, ReadableUser=[user])
+        graph.save()
+        node = Node(Graph=graph, Title=f'{graph.Title}_{graph.id}_base_node', IsBase=True)
+        node.save()
+        return HttpResponse(status=200)
+    return HttpResponse(status=201)
+
+
+@check_token
+@check_node
+def append_content(request, user=None, node=None):
+    """
+    Добавить контент к узлу графа
+    token: Уникальный токен пользователя
+    node_id: Идентификатор узла
+    content:
+        text:
+        data:
+    """
+    if request.POST:
+        text = request.POST.get('text')
+        data = request.POST.get('data')
+        if text or data:
+            content_ord = Content.objects.filter(Node=node).aggregate(max_ord=Max('Ord'))['max_ord'] + 1
+            content = Content(Text=text, Data=data, Node=node, Ord=content_ord)
+            content.save()
+            links = Link.objects.filter(StartNode=node) | Link.objects.filter(EndNode=node)
+            links.delete()
+            create_links(node)
+        return HttpResponse(status=200)
+    return HttpResponse(status=201)
+
+
+@check_token
+@check_graph
+def delete_graph(request, user=None, graph=None):
+    """
+    Удалить заданный граф (все его узлы и связи)
+    token: Уникальный токен пользователя
+    graph_id: Идентификатор графа
+    """
+    graph.delete()
+
+
+@check_token
+@check_node
+def delete_node(request, user=None, node=None):
+    """
+    Удалить заданный узел (и все связи с ним)
+    token: Уникальный токен пользователя
+    node_id: Идентификатор узла
+    """
+    node.delete()
+
+
+@check_token
+@check_content
+def delete_content(request, user=None, node=None, content=None):
+    """
+    Удалить заданный контент
+    token: Уникальный токен пользователя
+    content_id: Идентификатор узла
+    """
+    content.delete()
+    links = Link.objects.filter(StartNode=node) | Link.objects.filter(EndNode=node)
+    links.delete()
+    create_links(node)
+

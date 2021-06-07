@@ -29,7 +29,7 @@ class Content(models.Model):
     Node = models.ForeignKey(Node, on_delete=models.CASCADE, blank=True, null=True)
     Text = models.TextField('Text', blank=True, null=True)
     Data = models.FileField('Data', blank=True, null=True)
-    Ord = models.IntegerField('Ord', default=0)
+    Ord = models.IntegerField('Ord', default=1)
 
     def __str__(self):
         return f'{self.Node.Title}: {self.Ord}' if self.Node else 'Empty name'
