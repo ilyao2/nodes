@@ -1,0 +1,39 @@
+{% extends 'index.html' %}
+
+{% load static %}
+
+{% block content %}
+
+Список графов
+<hr>
+<table border="1" align="center" bgcolor="#ddd">
+{% for graph in graphs_list %}
+<tr class="string">
+    <td width="30px" align="center">{{ graph.id }}</td>
+    <td width="135px" align="center">{{ graph.Title }}</td>
+    <td width="70px" align="center">
+        <form method="get" action="http://127.0.0.1:8000/graph/">
+            <input type="hidden" name="graph_id" value="{{graph.id}}">
+            <input type="submit" value="Открыть">
+        </form>
+    </td>
+    <td width="70px" align="center">
+        <form method="post" action="http://127.0.0.1:8000/graph_delete/">
+            <input type="hidden" name="graph_id" value="{{graph.id}}">
+            <input type="submit" value="Удалить">
+        </form>
+    </td>
+</tr>
+{% endfor %}
+</table>
+<br>
+<table border="1" align="center" bgcolor="#ddd">
+<tr>
+    <form method="post" action="http://127.0.0.1:8000/graph_append/">
+    <td width="180px" align="center"><input type="text" name="title"></td>
+    <td width="140px" align="center"><input type="submit" value="Создать"></td>
+    </form>
+</tr>
+</table>
+
+{% endblock %}

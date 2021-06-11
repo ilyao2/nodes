@@ -8,87 +8,102 @@ from uuid import uuid4
 # TODO: распределить функции по модулям
 
 
-def check_token(func):
+def check_token():
     """
     Декоратор проверяющий наличие токена и его правльность.
     """
-    def inner(*args, **kwargs):
-        request = args[0]
-        token = request.GET.get('token') or request.POST.get('token')
-        if not token:
-            response = JsonResponse({'Error': 'Input token'})
-        else:
-            try:
-                user = Token.objects.get(UUID=token).User
-                response = func(*args, user=user, **kwargs)
-            except (ObjectDoesNotExist, MultipleObjectsReturned):
-                response = JsonResponse({'Error': 'Bad token'})
-        return response
-    return inner
+    def outer(func):
+        def inner(*args, **kwargs):
+            request = args[0]
+            token = request.GET.get('token') or request.POST.get('token')
+            if not token:
+                response = JsonResponse({'Error': 'Input token'})
+            else:
+                try:
+                    user = Token.objects.get(UUID=token).User
+                    response = func(*args, user=user, **kwargs)
+                except (ObjectDoesNotExist, MultipleObjectsReturned):
+                    response = JsonResponse({'Error': 'Bad token'})
+            return response
+        return inner
+    return outer
 
 
-def check_graph(func, user_param=None):
+def check_graph(author=False):
     """
     Декоратор проверяющий наличие и доступ к переданному графу
     """
-    def inner(*args, user=user_param, **kwargs):
-        request = args[0]
-        graph_id = request.GET.get('graph_id') or request.POST.get('graph_id')
-        if not graph_id:
-            response = JsonResponse({'Error': 'Input graph_id'})
-        else:
-            try:
-                graph = Graph.objects.get(ReadableUser=user, id=graph_id)
-                response = func(*args, user=user, graph=graph, **kwargs)
-            except (ObjectDoesNotExist, MultipleObjectsReturned):
-                response = JsonResponse({'Error': "You don't have access to this graph or bad graph id"})
-        return response
-    return inner
+    def outer(func, user_param=None):
+        def inner(*args, user=user_param, **kwargs):
+            request = args[0]
+            graph_id = request.GET.get('graph_id') or request.POST.get('graph_id')
+            if not graph_id:
+                response = JsonResponse({'Error': 'Input graph_id'})
+            else:
+                try:
+                    if author:
+                        graph = Graph.objects.get(User=user, id=graph_id)
+                    else:
+                        graph = Graph.objects.get(ReadableUser=user, id=graph_id)
+                    response = func(*args, user=user, graph=graph, **kwargs)
+                except (ObjectDoesNotExist, MultipleObjectsReturned):
+                    response = JsonResponse({'Error': "You don't have access to this graph or bad graph id"})
+            return response
+        return inner
+    return outer
 
 
-def check_node(func, user_param=None):
+def check_node(author=False):
     """
     Декоратор проверяющий наличие и доступ к переданному узлу
     """
-    def inner(*args, user=user_param, **kwargs):
-        request = args[0]
-        node_id = request.GET.get('node_id') or request.POST.get('node_id')
-        if not node_id:
-            response = JsonResponse({'Error': 'Input node_id'})
-        else:
-            try:
-                node = Node.objects.get(id=node_id)
-                if Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
-                    response = func(*args, user=user, node=node, **kwargs)
-                else:
-                    response = JsonResponse({'Error': "You don't have access to this node"})
-            except (ObjectDoesNotExist, MultipleObjectsReturned):
-                response = JsonResponse({'Error': 'Bad node id'})
-        return response
-    return inner
+    def outer(func, user_param=None):
+        def inner(*args, user=user_param, **kwargs):
+            request = args[0]
+            node_id = request.GET.get('node_id') or request.POST.get('node_id')
+            if not node_id:
+                response = JsonResponse({'Error': 'Input node_id'})
+            else:
+                try:
+                    node = Node.objects.get(id=node_id)
+                    if author and Graph.objects.filter(User=user, id=node.Graph.id).exists():
+                        response = func(*args, user=user, node=node, **kwargs)
+                    elif not author and Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
+                        response = func(*args, user=user, node=node, **kwargs)
+                    else:
+                        response = JsonResponse({'Error': "You don't have access to this node"})
+                except (ObjectDoesNotExist, MultipleObjectsReturned):
+                    response = JsonResponse({'Error': 'Bad node id'})
+            return response
+        return inner
+    return outer
 
 
-def check_content(func, user_param=None):
+def check_content(author=False):
     """
     Декоратор проверяющий наличие и доступ к переданному узлу
     """
-    def inner(*args, user=user_param, **kwargs):
-        request = args[0]
-        content_id = request.GET.get('content_id') or request.POST.get('content_id')
-        if not content_id:
-            response = JsonResponse({'Error': 'Input content_id'})
-        else:
-            try:
-                content = Content.objects.get(id=content_id)
-                node = Node.objects.get(id=content.Node)
-                if Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
-                    response = func(*args, user=user, content=content, node=node, **kwargs)
-                else:
-                    response = JsonResponse({'Error': "You don't have access to this content"})
-            except (ObjectDoesNotExist, MultipleObjectsReturned):
-                response = JsonResponse({'Error': 'Bad content id'})
-        return response
-    return inner
+    def outer(func, user_param=None):
+        def inner(*args, user=user_param, **kwargs):
+            request = args[0]
+            content_id = request.GET.get('content_id') or request.POST.get('content_id')
+            if not content_id:
+                response = JsonResponse({'Error': 'Input content_id'})
+            else:
+                try:
+                    content = Content.objects.get(id=content_id)
+                    node = Node.objects.get(id=content.Node_id)
+                    if author and Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
+                        response = func(*args, user=user, content=content, node=node, **kwargs)
+                    elif not author and Graph.objects.filter(ReadableUser=user, id=node.Graph.id).exists():
+                        response = func(*args, user=user, node=node, **kwargs)
+                    else:
+                        response = JsonResponse({'Error': "You don't have access to this content"})
+                except (ObjectDoesNotExist, MultipleObjectsReturned):
+                    response = JsonResponse({'Error': 'Bad content id'})
+            return response
+        return inner
+    return outer
 
 
 def auth(request):
@@ -130,7 +145,7 @@ def reg(request):
     return response
 
 
-@check_token
+@check_token()
 def get_my_graphs(request, user=None):
     """
     Получить все графы текущего пользователя
@@ -141,8 +156,8 @@ def get_my_graphs(request, user=None):
     return response
 
 
-@check_token
-@check_graph
+@check_token()
+@check_graph()
 def get_base_node(request, user=None, graph=None):
     """
     Получить базовый узел заданного графа
@@ -154,8 +169,8 @@ def get_base_node(request, user=None, graph=None):
     return response
 
 
-@check_token
-@check_graph
+@check_token()
+@check_graph()
 def get_graph_nodes(request, user=None, graph=None):
     """
     Получить все узлы принадлежащие графу
@@ -167,8 +182,8 @@ def get_graph_nodes(request, user=None, graph=None):
     return response
 
 
-@check_token
-@check_node
+@check_token()
+@check_node()
 def get_links_from(request, user=None, node=None):
     """
     Получить все узлы, в которые можно попасть из этого узла
@@ -181,8 +196,8 @@ def get_links_from(request, user=None, node=None):
     return response
 
 
-@check_token
-@check_node
+@check_token()
+@check_node()
 def get_links_to(request, user=None, node=None):
     """
     Получить все узлы, из которых можно попасть в этот узел
@@ -195,8 +210,8 @@ def get_links_to(request, user=None, node=None):
     return response
 
 
-@check_token
-@check_node
+@check_token()
+@check_node()
 def get_node_content(request, user=None, node=None):
     """
     Получить контенты заданного узла отсортированные по указанному порядку
@@ -208,8 +223,8 @@ def get_node_content(request, user=None, node=None):
     return response
 
 
-@check_token
-@check_graph
+@check_token()
+@check_graph()
 def append_node(request, user=None, graph=None):
     """
     Добавить узел в граф
@@ -281,7 +296,7 @@ def get_ordered_nodes(request, graph_id):
     # TODO: сортировка по рейтингу
 
 
-@check_token
+@check_token()
 def create_graph(request, user=None):
     """
     Создать граф и базовый узел в нём. Не должно существовать графов без узла
@@ -291,16 +306,17 @@ def create_graph(request, user=None):
     """
     if request.POST:
         title = request.POST.get('title')
-        graph = Graph(Title=title, User=user, ReadableUser=[user])
+        graph = Graph(Title=title, User=user)
         graph.save()
+        graph.ReadableUser.add(user)
         node = Node(Graph=graph, Title=f'{graph.Title}_{graph.id}_base_node', IsBase=True)
         node.save()
         return HttpResponse(status=200)
     return HttpResponse(status=201)
 
 
-@check_token
-@check_node
+@check_token()
+@check_node()
 def append_content(request, user=None, node=None):
     """
     Добавить контент к узлу графа
@@ -314,7 +330,8 @@ def append_content(request, user=None, node=None):
         text = request.POST.get('text')
         data = request.POST.get('data')
         if text or data:
-            content_ord = Content.objects.filter(Node=node).aggregate(max_ord=Max('Ord'))['max_ord'] + 1
+            content_ord = Content.objects.filter(Node=node).aggregate(max_ord=Max('Ord'))['max_ord'] or 0
+            content_ord += 1
             content = Content(Text=text, Data=data, Node=node, Ord=content_ord)
             content.save()
             links = Link.objects.filter(StartNode=node) | Link.objects.filter(EndNode=node)
@@ -324,8 +341,8 @@ def append_content(request, user=None, node=None):
     return HttpResponse(status=201)
 
 
-@check_token
-@check_graph
+@check_token()
+@check_graph(author=True)
 def delete_graph(request, user=None, graph=None):
     """
     Удалить заданный граф (все его узлы и связи)
@@ -335,8 +352,8 @@ def delete_graph(request, user=None, graph=None):
     graph.delete()
 
 
-@check_token
-@check_node
+@check_token()
+@check_node(author=True)
 def delete_node(request, user=None, node=None):
     """
     Удалить заданный узел (и все связи с ним)
@@ -346,8 +363,8 @@ def delete_node(request, user=None, node=None):
     node.delete()
 
 
-@check_token
-@check_content
+@check_token()
+@check_content(author=True)
 def delete_content(request, user=None, node=None, content=None):
     """
     Удалить заданный контент

@@ -1,0 +1,40 @@
+{% extends 'index.html' %}
+
+{% load static %}
+
+{% block content %}
+
+Список узлов
+<hr>
+<table border="1" align="center" bgcolor="#ddd">
+{% for node in nodes_list %}
+<tr class="string">
+    <td width="30px" align="center">{{ node.id }}</td>
+    <td width="135px" align="center">{{ node.Title }}</td>
+    <td width="70px" align="center">
+        <form method="get" action="http://127.0.0.1:8000/node/">
+            <input type="hidden" name="node_id" value="{{node.id}}">
+            <input type="submit" value="Открыть">
+        </form>
+    </td>
+    <td width="70px" align="center">
+        <form method="post" action="http://127.0.0.1:8000/node_delete/">
+            <input type="hidden" name="node_id" value="{{node.id}}">
+            <input type="submit" value="Удалить" >
+        </form>
+    </td>
+</tr>
+{% endfor %}
+</table>
+<br>
+<table border="1" align="center" bgcolor="#ddd">
+<tr>
+    <form method="post" action="http://127.0.0.1:8000/node_append/">
+        <td width="180px" align="center"><input type="text" name="title"></td>
+        <td width="140px" align="center"><input type="submit" value="Создать"></td>
+        <input type="hidden" name="graph_id" value="{{graph_id}}">
+    </form>
+</tr>
+</table>
+
+{% endblock %}
