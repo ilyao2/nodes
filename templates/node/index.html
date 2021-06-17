@@ -4,7 +4,7 @@
 
 {% block content %}
 
-Список узлов
+Контент
 <hr>
 <table border="1" align="center" bgcolor="#ddd">
 {% for content in contents_list %}
@@ -24,11 +24,60 @@
 <table border="1" align="center" bgcolor="#ddd">
 <tr>
     <form method="post" action="http://127.0.0.1:8000/content_append/">
-        <td width="180px" align="center"><input type="text" name="text"></td>
-        <td width="140px" align="center"><input type="submit" value="Создать"></td>
+        <td width="730px" align="center"><textarea name="text"></textarea></td>
+        <td width="70px" align="center"><input type="submit" value="Создать"></td>
         <input type="hidden" name="node_id" value="{{node_id}}">
     </form>
 </tr>
 </table>
-
+<br>
+Prev Nodes:
+<hr>
+<table border="1" align="center" bgcolor="#ddd">
+{% for node in prev_nodes_list %}
+<tr class="string">
+    <td width="30px" align="center">{{ node.id }}</td>
+    <td width="135px" align="center">{{ node.Title }}</td>
+    <td width="70px" align="center">
+        <form method="get" action="http://127.0.0.1:8000/node/">
+            <input type="hidden" name="node_id" value="{{node.id}}">
+            <input type="submit" value="Открыть">
+        </form>
+    </td>
+    <td width="70px" align="center">
+        {% if not node.IsBase %}
+        <form method="post" action="http://127.0.0.1:8000/node_delete/">
+            <input type="hidden" name="node_id" value="{{node.id}}">
+            <input type="submit" value="Удалить" >
+        </form>
+        {% endif %}
+    </td>
+</tr>
+{% endfor %}
+</table>
+<br>
+Next Nodes:
+<hr>
+<table border="1" align="center" bgcolor="#ddd">
+{% for node in next_nodes_list %}
+<tr class="string">
+    <td width="30px" align="center">{{ node.id }}</td>
+    <td width="135px" align="center">{{ node.Title }}</td>
+    <td width="70px" align="center">
+        <form method="get" action="http://127.0.0.1:8000/node/">
+            <input type="hidden" name="node_id" value="{{node.id}}">
+            <input type="submit" value="Открыть">
+        </form>
+    </td>
+    <td width="70px" align="center">
+        {% if not node.IsBase %}
+        <form method="post" action="http://127.0.0.1:8000/node_delete/">
+            <input type="hidden" name="node_id" value="{{node.id}}">
+            <input type="submit" value="Удалить" >
+        </form>
+        {% endif %}
+    </td>
+</tr>
+{% endfor %}
+</table>
 {% endblock %}

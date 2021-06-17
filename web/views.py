@@ -60,7 +60,14 @@ def node_view(request):
         req.GET['node_id'] = req.GET['node_id'][0]
         byte_data = api.get_node_content(req).getvalue()
         contents = json.loads(byte_data.decode())
+        byte_data = api.get_links_to(req).getvalue()
+        prev_nodes = json.loads(byte_data.decode())
+        byte_data = api.get_links_from(req).getvalue()
+        next_nodes = json.loads(byte_data.decode())
+
         return render(request, 'node/index.html', {'contents_list': contents['Contents'],
+                                                   'prev_nodes_list': prev_nodes['Nodes'],
+                                                   'next_nodes_list': next_nodes['Nodes'],
                                                    'node_id': req.GET['node_id']})
     else:
         return redirect('/login/', request)

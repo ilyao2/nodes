@@ -18,10 +18,12 @@
         </form>
     </td>
     <td width="70px" align="center">
+        {% if not node.IsBase %}
         <form method="post" action="http://127.0.0.1:8000/node_delete/">
             <input type="hidden" name="node_id" value="{{node.id}}">
             <input type="submit" value="Удалить" >
         </form>
+        {% endif %}
     </td>
 </tr>
 {% endfor %}

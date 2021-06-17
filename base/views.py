@@ -262,27 +262,29 @@ def create_links(node):
     other_contents = Content.objects.filter(Node__in=other_nodes)
     node_contents = Content.objects.filter(Node=node)
     links_dict = {}
+    for other_node in other_nodes:
+        for content in node_contents:
+            text = content.Text
+            weight = text.lower().count(other_node.Title.lower()) if text else 0
+            if weight > 0:
+                if (node, other_node) in links_dict:
+                    links_dict[(node, other_node)] += weight
+                else:
+                    links_dict[(node, other_node)] = weight
+
+    if not links_dict:
+        base_node = Node.objects.get(Graph=node.Graph, IsBase=True)
+        links_dict[(node, base_node)] = 1
+
     for other_content in other_contents:
         text = other_content.Text
-        weight = text.count(node.Title) if text else 0
+        weight = text.lower().count(node.Title.lower()) if text else 0
         if weight > 0:
             other_node = other_content.Node
             if (other_node, node) in links_dict:
                 links_dict[(other_node, node)] += weight
             else:
                 links_dict[(other_node, node)] = weight
-    if not links_dict:
-        base_node = Node.objects.get(Graph=node.Graph, IsBase=True)
-        links_dict[(base_node, node)] = 1
-    for other_node in other_nodes:
-        for content in node_contents:
-            text = content.Text
-            weight = text.count(other_node.Title) if text else 0
-            if weight > 0:
-                if (node, other_node) in links_dict:
-                    links_dict[(node, other_node)] += weight
-                else:
-                    links_dict[(node, other_node)] = weight
 
     links = [Link(StartNode=link[0], EndNode=link[1], Weight=links_dict[link]) for link in links_dict]
     Link.objects.bulk_create(links)
